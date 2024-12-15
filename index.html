@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body{
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+        }
+        .game-container {
+            position: relative;
+            display: flex;
+            height: 100vh;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            border: 2px solid #333;
+            border-radius: 10px;
+            height: auto;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 1);
+        }
+        .score {
+            color: #333;
+            font-size: 24px;
+            margin: 10px 0;
+            z-index: 2;
+        }
+        #gameCanvas {
+            border: 2px solid #333;
+            position: relative;
+            z-index: 2;
+            background: rgba(34, 34, 34, 0.7);
+        }
+        #bgImage {
+            width: 400px;
+            height: 400px;
+            object-fit: cover;
+            filter: blur(50px);
+            transition: filter 0.5s ease;
+            z-index: 1;
+            margin-left: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="score">Puntuación: <span id="scoreElement">0</span></div>
+        <div style="position: relative;">
+            <canvas id="gameCanvas" width="400" height="400"></canvas>
+        </div>
+    </div>
+    <img src="gra.webp" id="bgImage" alt="">
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('scoreElement');
+        const bgImage = document.getElementById('bgImage');
+        
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+        const imagen = new Image();
+        imagen.src = 'gra.webp';
+        const maxScore = 200; // Puntuación para alcanzar nitidez total
+        const initialBlur = 50; // Blur inicial en píxeles
+        
+        let snake = [
+            {x: 10, y: 10}
+        ];
+        let velocity = {x: 0, y: 0};
+        let apple = {x: 15, y: 15};
+        let score = 0;
+        let particles = [];
+        
+        class Particle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 4;
+                this.vy = (Math.random() - 0.5) * 4;
+                this.life = 1;
+            }
+            
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= 0.02;
+            }
+            
+            draw() {
+                ctx.fillStyle = `rgba(255, 0, 0, ${this.life})`;
+                ctx.fillRect(this.x, this.y, 3, 3);
+            }
+        }
+        
+        function updateBlur() {
+            const blurAmount = Math.max(0, initialBlur - (score / maxScore) * initialBlur);
+            bgImage.style.filter = `blur(${blurAmount}px)`;
+            document.querySelector('body').appendChild(bgImage);
+        }
+        
+        function createParticles(x, y) {
+            for (let i = 0; i < 30; i++) {
+                particles.push(new Particle(x * gridSize, y * gridSize));
+            }
+        }
+        
+        function drawGame() {
+            clearScreen();
+            moveSnake();
+            checkAppleCollision();
+            drawSnake();
+            drawApple();
+            updateParticles();
+            checkGameOver();
+            
+            setTimeout(drawGame, 1000/15);
+        }
+        
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw();
+                
+                if (particles[i].life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+        
+        function clearScreen() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        function drawSnake() {
+            ctx.fillStyle = 'green';
+            snake.forEach(part => {
+                ctx.fillRect(part.x * gridSize, part.y * gridSize, gridSize - 2, gridSize - 2);
+            });
+        }
+        
+        function drawApple() {
+            ctx.fillStyle = 'red';
+            ctx.fillRect(apple.x * gridSize, apple.y * gridSize, gridSize - 2, gridSize - 2);
+        }
+        
+        function moveSnake() {
+            const head = {x: snake[0].x + velocity.x, y: snake[0].y + velocity.y};
+            
+            if (head.x < 0) head.x = tileCount - 1;
+            if (head.x >= tileCount) head.x = 0;
+            if (head.y < 0) head.y = tileCount - 1;
+            if (head.y >= tileCount) head.y = 0;
+            
+            snake.unshift(head);
+            
+            if (!checkAppleCollision()) {
+                snake.pop();
+            }
+        }
+        
+        function checkAppleCollision() {
+            if (snake[0].x === apple.x && snake[0].y === apple.y) {
+                createParticles(apple.x, apple.y);
+                score += 10;
+                scoreElement.textContent = score;
+                updateBlur();
+                placeApple();
+                return true;
+            }
+            return false;
+        }
+        
+        function placeApple() {
+            let newApple;
+            do {
+                newApple = {
+                    x: Math.floor(Math.random() * tileCount),
+                    y: Math.floor(Math.random() * tileCount)
+                };
+            } while (snake.some(part => part.x === newApple.x && part.y === newApple.y));
+            
+            apple = newApple;
+        }
+        
+        function checkGameOver() {
+            for (let i = 1; i < snake.length; i++) {
+                if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) {
+                    resetGame();
+                }
+            }
+        }
+        
+        function resetGame() {
+            snake = [{x: 10, y: 10}];
+            velocity = {x: 0, y: 0};
+            score = 0;
+            scoreElement.textContent = score;
+            updateBlur();
+            placeApple();
+            particles = [];
+        }
+        
+        document.addEventListener('keydown', (event) => {
+            switch (event.key) {
+                case 'ArrowUp':
+                    if (velocity.y !== 1) {
+                        velocity = {x: 0, y: -1};
+                    }
+                    break;
+                case 'ArrowDown':
+                    if (velocity.y !== -1) {
+                        velocity = {x: 0, y: 1};
+                    }
+                    break;
+                case 'ArrowLeft':
+                    if (velocity.x !== 1) {
+                        velocity = {x: -1, y: 0};
+                    }
+                    break;
+                case 'ArrowRight':
+                    if (velocity.x !== -1) {
+                        velocity = {x: 1, y: 0};
+                    }
+                    break;
+            }
+        });
+        
+        drawGame();
+    </script>
+</body>
+</html>
